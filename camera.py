@@ -51,6 +51,27 @@ class Camera:
 
     def undistort(self, img):
         """
-        Undistort an image
+        Remove distortion from an image
         """
         return cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
+
+    @staticmethod
+    def warp(img):
+        """
+        Warp the lane portion of an image to a birds-eye POV
+        """
+        # trapezoid points
+        bottom_left = [200, img.shape[0]]
+        top_left = [(img.shape[1]/2)-30, (img.shape[0]/2)+80]
+        top_right = [(img.shape[1]/2)+30, (img.shape[0]/2)+80]
+        bottom_right = [img.shape[1]-165, img.shape[0]]
+
+        src_corners = [bottom_left, top_left, top_right, bottom_right]
+        dst_corners = [
+            [325, img.shape[0]],
+            [325, 0],
+            [img.shape[1]-325, 0],
+            [img.shape[1]-325, img.shape[0]]
+        ]
+        M = cv2.getPerspectiveTransorm(src_corners, dst_corners)
+        return cv2.warpPerspective(img, M, img.shape[::-1])
