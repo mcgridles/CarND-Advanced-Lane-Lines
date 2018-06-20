@@ -1,0 +1,8 @@
+__pycache__
+camera_cal/
+examples/
+output_images/save_output_here.txt
+test_images/
+*.mp4
+*.sh
+example_writeup.pdf
