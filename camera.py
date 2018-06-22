@@ -1,5 +1,6 @@
 import cv2
 import glob
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -20,18 +21,20 @@ class Camera:
         self.mtx = None
         self.dist = None
 
+        # automatically calibrate all camera objects
+        self.calibrate()
+
     def calibrate(self):
         """
         Use calibration images to calculate the camera matrix and distortion
         coefficients
         """
-        img_shape = None
         images = glob.glob('camera_cal/calibration*.jpg')
+        img_shape = None
+        objpoints = []
+        imgpoints = []
 
         for image_path in images:
-            objpoints = []
-            imgpoints = []
-
             objp = np.zeros((self.nx*self.ny, 3), np.float32)
             objp[:,:2] = np.mgrid[0:self.nx, 0:self.ny].T.reshape(-1, 2)
 
@@ -41,13 +44,11 @@ class Camera:
                 img_shape = gray.shape[::-1]
 
             ret, corners = cv2.findChessboardCorners(gray, (self.nx, self.ny), None)
-            if ret:
+            if ret == True:
                 imgpoints.append(corners)
                 objpoints.append(objp)
 
-        ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(
-            objpoints, imgpoints, img_shape, None, None
-        )
+        ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_shape, None, None)
 
     def undistort(self, img):
         """

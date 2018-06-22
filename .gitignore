@@ -1,4 +1,10 @@
+# OS files
+.DS_Store
+
+# Python files
 __pycache__
+
+# Extra project files
 camera_cal/
 examples/
 output_images/save_output_here.txt
