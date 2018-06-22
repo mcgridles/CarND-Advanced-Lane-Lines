@@ -63,16 +63,17 @@ class Camera:
         """
         # trapezoid points
         bottom_left = [200, img.shape[0]]
-        top_left = [(img.shape[1]/2)-30, (img.shape[0]/2)+80]
-        top_right = [(img.shape[1]/2)+30, (img.shape[0]/2)+80]
+        top_left = [(img.shape[1]/2)-60, (img.shape[0]/2)+100]
+        top_right = [(img.shape[1]/2)+65, (img.shape[0]/2)+100]
         bottom_right = [img.shape[1]-165, img.shape[0]]
 
-        src_corners = [bottom_left, top_left, top_right, bottom_right]
-        dst_corners = [
-            [325, img.shape[0]],
-            [325, 0],
-            [img.shape[1]-325, 0],
-            [img.shape[1]-325, img.shape[0]]
-        ]
-        M = cv2.getPerspectiveTransorm(src_corners, dst_corners)
+        src_corners = np.float32([bottom_left, top_left, top_right, bottom_right])
+        dst_corners = np.float32([
+            [200, img.shape[0]],
+            [200, 0],
+            [img.shape[1]-200, 0],
+            [img.shape[1]-200, img.shape[0]]
+        ])
+
+        M = cv2.getPerspectiveTransform(src_corners, dst_corners)
         return cv2.warpPerspective(img, M, img.shape[::-1])

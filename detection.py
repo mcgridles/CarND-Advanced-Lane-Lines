@@ -41,22 +41,23 @@ class Processor:
 
         # apply color thresholding
         s_channel = self.sChannelThreshold(undistorted, thresh=(90, 255))
-        r_channel = self.rChannelThreshold(undistorted, thresh=(90, 255))
-        combined_channel = np.zeros_like(r_channel)
-        combined_channel[(s_channel == 1) | (r_channel == 1)] = 1
+        r_channel = self.rChannelThreshold(undistorted, thresh=(110, 220))
+        combined_color = np.zeros_like(r_channel)
+        combined_color[(s_channel == 1) | (r_channel == 1)] = 1
+        test = np.dstack((s_channel, s_channel, s_channel))*255
 
         # warp for birds-eye view
-        warped = self.camera.warp(combined_channel)
+        warped = self.camera.warp(combined_color)
 
         # apply gradient thresholding
-        grad_x = absSobelThresh(warped, orient='x', sobel_kernel=3, thresh=(20, 100))
-        grad_y = absSobelThresh(warped, orient='y', sobel_kernel=3, thresh=(20, 100))
-        mag_binary = magThresh(warped, sobel_kernel=9, thresh=(30, 100))
-        dir_binary = dirThreshold(warped, sobel_kernel=3, thresh=(0.7, 1.3))
-        combined_grad = np.zeros_like(dir_binary)
-        combined_grad[((grad_x == 1) & (grad_y == 1)) | ((mag_binary == 1) & (dir_binary == 1))] = 1
+        # grad_x = self.absSobelThresh(warped, orient='x', sobel_kernel=9, thresh=(5, 100))
+        # grad_y = self.absSobelThresh(warped, orient='y', sobel_kernel=9, thresh=(20, 100))
+        # mag_binary = self.magThresh(warped, sobel_kernel=9, thresh=(30, 100))
+        # dir_binary = self.dirThreshold(warped, sobel_kernel=3, thresh=(0.7, 1.3))
+        # combined_grad = np.zeros_like(dir_binary)
+        # combined_grad[((grad_x == 1) & (grad_y == 1)) | ((mag_binary == 1) & (dir_binary == 1))] = 1
 
-        self.slidingWindows(combined_grad)
+        self.slidingWindows(warped)
 
     def sChannelThreshold(self, img, thresh=(0, 255)):
         hls = cv2.cvtColor(img, self.color_convert['2HLS'])
@@ -91,7 +92,7 @@ class Processor:
         abs_sobel = np.abs(sobel)
         scaled_sobel = np.uint8(255*abs_sobel/np.max(abs_sobel))
         grad_binary = np.zeros_like(scaled_sobel)
-        grad_binary[(scaled_sobel >= thres[0]) & (scaled_sobel <= thresh[1])] = 1
+        grad_binary[(scaled_sobel >= thresh[0]) & (scaled_sobel <= thresh[1])] = 1
         return grad_binary
 
     @staticmethod
@@ -139,75 +140,78 @@ class Processor:
         window_height = np.int(img.shape[0]//self.nwindows)
 
         nonzero = img.nonzero()
-        nonzeroy = np.array(nonzero[0])
-        nonzerox = np.array(nonzero[1])
+        nonzero_y = np.array(nonzero[0])
+        nonzero_x = np.array(nonzero[1])
 
-        leftx_current = leftx_base
-        rightx_current = rightx_base
+        left_x_current = left_x_base
+        right_x_current = right_x_base
 
         left_lane_inds = []
         right_lane_inds = []
 
-        for window in range(nwindows):
+        for window in range(self.nwindows):
             # identify window boundaries in x and y (and right and left)
             win_y_low = img.shape[0] - (window+1)*window_height
             win_y_high = img.shape[0] - window*window_height
-            win_xleft_low = leftx_current - margin
-            win_xleft_high = leftx_current + margin
-            win_xright_low = rightx_current - margin
-            win_xright_high = rightx_current + margin
+            win_x_left_low = left_x_current - self.margin
+            win_x_left_high = left_x_current + self.margin
+            win_x_right_low = right_x_current - self.margin
+            win_x_right_high = right_x_current + self.margin
 
             # draw the windows on the visualization image
-            cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high), (0,255,0), 2)
-            cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high), (0,255,0), 2)
+            cv2.rectangle(out_img,(win_x_left_low,win_y_low),(win_x_left_high,win_y_high), (0,255,0), 2)
+            cv2.rectangle(out_img,(win_x_right_low,win_y_low),(win_x_right_high,win_y_high), (0,255,0), 2)
 
             # identify the nonzero pixels in x and y within the window
-            good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-                (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
-            good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-                (nonzerox >= win_xright_low) &  (nonzerox < win_xright_high)).nonzero()[0]
+            good_left_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+                (nonzero_x >= win_x_left_low) &  (nonzero_x < win_x_left_high)).nonzero()[0]
+            good_right_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+                (nonzero_x >= win_x_right_low) &  (nonzero_x < win_x_right_high)).nonzero()[0]
 
             # append these indices to the lists
             left_lane_inds.append(good_left_inds)
             right_lane_inds.append(good_right_inds)
 
             # if > minpix pixels found, recenter next window on their mean position
-            if len(good_left_inds) > minpix:
-                leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
-            if len(good_right_inds) > minpix:
-                rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+            if len(good_left_inds) > self.minpix:
+                left_x_current = np.int(np.mean(nonzero_x[good_left_inds]))
+            if len(good_right_inds) > self.minpix:
+                right_x_current = np.int(np.mean(nonzero_x[good_right_inds]))
 
         # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
         right_lane_inds = np.concatenate(right_lane_inds)
 
         # Extract left and right line pixel positions
-        leftx = nonzerox[left_lane_inds]
-        lefty = nonzeroy[left_lane_inds]
-        rightx = nonzerox[right_lane_inds]
-        righty = nonzeroy[right_lane_inds]
+        left_x = nonzero_x[left_lane_inds]
+        left_y = nonzero_y[left_lane_inds]
+        right_x = nonzero_x[right_lane_inds]
+        right_y = nonzero_y[right_lane_inds]
 
         # Fit a second order polynomial to each
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
+        left_fit = np.polyfit(left_y, left_x, 2)
+        right_fit = np.polyfit(right_y, right_x, 2)
 
         # Generate x and y values for plotting
-        plot_y = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+        plot_y = np.linspace(0, img.shape[0]-1, img.shape[0] )
         left_fit_x = left_fit[0]*plot_y**2 + left_fit[1]*plot_y + left_fit[2]
         right_fit_x = right_fit[0]*plot_y**2 + right_fit[1]*plot_y + right_fit[2]
 
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+        out_img[nonzero_y[left_lane_inds], nonzero_x[left_lane_inds]] = [255, 0, 0]
+        out_img[nonzero_y[right_lane_inds], nonzero_x[right_lane_inds]] = [0, 0, 255]
         plt.imshow(out_img)
         plt.plot(left_fit_x, plot_y, color='yellow')
         plt.plot(right_fit_x, plot_y, color='yellow')
         plt.xlim(0, 1280)
         plt.ylim(720, 0)
+        plt.show()
 
         # create lines
 
 def main():
     processor = Processor('BGR')
+    img = cv2.imread('test_images/test2.jpg')
+    processor.processImage(img)
 
     #clip = VideoFileClip('challenge_video.mp4')
     #processed_video = clip.fl_image(processor.processImage)
