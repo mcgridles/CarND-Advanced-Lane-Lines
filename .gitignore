@@ -7,8 +7,8 @@ __pycache__
 # Extra project files
 camera_cal/
 examples/
-output_images/save_output_here.txt
 test_images/
-*.mp4
-*.sh
+project_video.mp4
+challenge_video.mp4
+harder_challenge_video.mp4
 example_writeup.pdf

@@ -1,6 +1,5 @@
 import cv2
 import glob
-import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,16 +12,19 @@ class Camera:
         ny: (int) -> number of chessboard rows
         mtx: (numpy.ndarray) -> camera matrix
         dist: (numpy.ndarray) -> distortion coefficients
+        transform_matrix: (numpy.ndarray) -> perspective warp transformation matrix
     """
 
-    def __init__(self):
+    def __init__(self, shape):
         self.nx = 9
         self.ny = 6
         self.mtx = None
         self.dist = None
+        self.transform_matrix = None
 
         # automatically calibrate all camera objects
         self.calibrate()
+        self.calculateTransformMatrix(shape)
 
     def calibrate(self):
         """
@@ -50,30 +52,43 @@ class Camera:
 
         ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_shape, None, None)
 
+    def calculateTransformMatrix(self, shape):
+        """
+        Calculates the transform matrix used for warping
+        """
+        # trapezoid points
+        bottom_left = [190, shape[0]]
+        top_left = [(shape[1]/2)-105, (shape[0]/2)+125]
+        top_right = [(shape[1]/2)+110, (shape[0]/2)+125]
+        bottom_right = [shape[1]-155, shape[0]]
+
+        src_corners = np.float32([bottom_left, top_left, top_right, bottom_right])
+        dst_corners = np.float32([
+            [200, shape[0]],
+            [200, 0],
+            [shape[1]-200, 0],
+            [shape[1]-200, shape[0]]
+        ])
+
+        self.transform_matrix = cv2.getPerspectiveTransform(src_corners, dst_corners)
+
     def undistort(self, img):
         """
         Remove distortion from an image
         """
         return cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
 
-    @staticmethod
-    def warp(img):
+    def warp(self, img):
         """
         Warp the lane portion of an image to a birds-eye POV
         """
-        # trapezoid points
-        bottom_left = [200, img.shape[0]]
-        top_left = [(img.shape[1]/2)-60, (img.shape[0]/2)+100]
-        top_right = [(img.shape[1]/2)+65, (img.shape[0]/2)+100]
-        bottom_right = [img.shape[1]-165, img.shape[0]]
+        shape = (img.shape[1], img.shape[0])
+        return cv2.warpPerspective(img, self.transform_matrix, shape)
 
-        src_corners = np.float32([bottom_left, top_left, top_right, bottom_right])
-        dst_corners = np.float32([
-            [200, img.shape[0]],
-            [200, 0],
-            [img.shape[1]-200, 0],
-            [img.shape[1]-200, img.shape[0]]
-        ])
-
-        M = cv2.getPerspectiveTransform(src_corners, dst_corners)
-        return cv2.warpPerspective(img, M, img.shape[::-1])
+    def unwarp(self, img):
+        """
+        Unwarps an image back to the original perspective
+        """
+        shape = (img.shape[1], img.shape[0])
+        Minv = np.linalg.inv(self.transform_matrix)
+        return cv2.warpPerspective(img, Minv, shape)
