@@ -47,17 +47,17 @@ I used a combination of color and gradient thresholds to generate a binary image
 The code for my perspective transform includes a function called `warp()`, which appears in lines 81 through 86 in the file `camera.py`, and a function called `calculateTransformMatrix()`, which takes care of calculating the transformation matrix during initialization. (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warp()` function takes as inputs an image (`img`), while the `calculateTransformMatrix()` function takes an image shape (`shape`). I separated the initialization of the transformation matrix from the warping because it only needs to happen once and the matrix can be used for the rest of the program execution. By doing it this way it does not need to be calculated for every image which speeds things up a bit. I chose the hardcode the source and destination points in the following manner:
 
 ```python
-bottom_left = [190, shape[0]]
-top_left = [(shape[1]/2)-105, (shape[0]/2)+125]
-top_right = [(shape[1]/2)+110, (shape[0]/2)+125]
-bottom_right = [shape[1]-155, shape[0]]
+bottom_left = [125, shape[0]]
+top_left = [(shape[1]/2)-70, (shape[0]/2)+90]
+top_right = [(shape[1]/2)+75, (shape[0]/2)+90]
+bottom_right = [shape[1]-95, shape[0]]
 
 src_corners = np.float32([bottom_left, top_left, top_right, bottom_right])
 dst_corners = np.float32([
-    [200, shape[0]],
-    [200, 0],
-    [shape[1]-200, 0],
-    [shape[1]-200, shape[0]]
+    [150, shape[0]],
+    [150, 0],
+    [shape[1]-150, 0],
+    [shape[1]-150, shape[0]]
 ])
 ```
 
@@ -65,10 +65,10 @@ This resulted in the following source and destination points:
 
 | Source        | Destination   |
 |:-------------:|:-------------:|
-| 200, 720      | 200, 720      |
-| 520, 485      | 200, 0        |
-| 740, 485      | 1080, 0       |
-| 1125, 720     | 1080, 720     |
+| 125, 720      | 150, 720      |
+| 570, 450      | 150, 0        |
+| 715, 450      | 1130, 0       |
+| 1185, 720     | 1130, 720     |
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
@@ -96,9 +96,7 @@ I implemented this step in lines # through # in my code in `detector.py` in the 
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./output.mp4)
-
-I really don't feel like this passes the expectations, but I was really having trouble fitting the lines and no matter what I tried nothing would really seem to change. See below for comments about this.
+Here's a [link to my video result](./output_video.mp4)
 
 ---
 
@@ -106,11 +104,9 @@ I really don't feel like this passes the expectations, but I was really having t
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-The main issue I had was with the shadows in the image, both on the side of the road and the shadows caused by the bridge in the middle of the video. The left line often would fit to the shadows caused by the barrier instead of the lane line, and it seemed like no amount of thresholding would give me the lane lines but not the shadows.
+The main problem I had on my original submission was that I was using `challenge_video.mp4` instead of `project_video.mp4`, and I was really having difficulty dealing with the shadows and the fact that the road was significantly lighter than in some of the test images. Once I realized that, my pipeline began performing much better, though I did still have a few issues with shadows and lighter road area.
 
-The shadow under the bridge unsurprisingly caused issues, which I tried to overcome by using smoothing techniques and eliminating the frames from the line calculations. However, I couldn't find a way to adequately eliminate frames due to the erratic radius calculations, and the smoothing always seemed to produce a line that didn't change enough and was stuck in on place, or changed the right amount but was then still affected by the shadow.
-
-I'm really not sure what direction I should be going in from this point, I feel like I understand the material and have been working at it consistently for a week or two now, but I've become stuck. I would definitely appreciate some feedback or a nudge in the right direction, I think I'm actually very close but I've painted myself into a corner and a fresh perspective might help me get to where I need to be.
+To combat this, I tuned my thresholding some more and added thresholding in the LAB color space, which seemed to ignore shadows fairly well. I also added sanity checks on the width of the lane, both in a single frame and across multiple, and that definitely helped, but I would have suspected that would completely remove the jitteriness and it didn't quite get there. Overall though, it made the result much better.
 
 One way the pipeline could be made more robust is to try to do feature extraction on the lane markings instead of simply using thresholding. For instance, a lane should have a higher value for all its pixels than the road on either side of it. In the case of a large shadow or bright area on the side of the road, the area of higher intensity pixels would most likely just have a single edge and not be a strip of high intensity.
 

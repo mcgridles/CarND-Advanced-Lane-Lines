@@ -16,35 +16,18 @@ class Line():
     """
 
     def __init__(self):
-        self.detected = False
-        self.best_fit_window = 25
-        self.best_fit_raw = []
+        self.best_fit_window = 3
+        self.previous_frames = []
         self.best_fit = None
         self.current_x_fit = None
 
-        self.x_scale = 3.2/700
+        self.x_scale = 3.7/980
         self.y_scale = 30/720
 
-        self._radius_of_curvature = None
-
-    @property
-    def radius_of_curvature(self):
-        return self._radius_of_curvature
-
-    @radius_of_curvature.setter
-    def radius_of_curvature(self, new_radius):
-        if self._radius_of_curvature:
-            if abs(new_radius - self._radius_of_curvature) < 500:
-                self._radius_of_curvature = new_radius
-                self.detected = True
-            else:
-                self.detected = False
-        else:
-            self._radius_of_curvature = new_radius
-            self.detected = True
+        self.radius_of_curvature = None
 
     def calculateBestFit(self):
-        self.best_fit = np.mean(self.best_fit_raw, axis=0)
+        self.best_fit = np.mean(self.previous_frames, axis=0)
 
     def calculateRadius(self, plot_y, x_fit):
         """

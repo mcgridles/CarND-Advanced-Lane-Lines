@@ -28,8 +28,8 @@ class Processor:
     """
 
     COLOR_CONVERT = {
-        'RGB': {'2GRAY': cv2.COLOR_RGB2GRAY, '2HLS': cv2.COLOR_RGB2HLS},
-        'BGR': {'2GRAY': cv2.COLOR_BGR2GRAY, '2HLS': cv2.COLOR_BGR2HLS}
+        'RGB': {'2GRAY': cv2.COLOR_RGB2GRAY, '2HLS': cv2.COLOR_RGB2HLS, '2LAB': cv2.COLOR_RGB2LAB},
+        'BGR': {'2GRAY': cv2.COLOR_BGR2GRAY, '2HLS': cv2.COLOR_BGR2HLS, '2LAB': cv2.COLOR_BGR2LAB},
     }
 
     def __init__(self, c_space, shape):
@@ -42,6 +42,9 @@ class Processor:
         self.nwindows = 9
         self.margin = 100
         self.minpix = 50
+        self.lane_width_threshold = 20
+        self.previous_difference = None
+        self.previous_difference_threshold = 5
         self.left_line = Line()
         self.right_line = Line()
 
@@ -51,17 +54,20 @@ class Processor:
         gray = cv2.cvtColor(undistorted, self.color_convert['2GRAY'])
 
         # apply color thresholding
-        s_channel = self.sChannelThreshold(undistorted, thresh=(130, 255))
+        s_channel = self.sChannelThreshold(undistorted, thresh=(220, 255))
+        r_channel = self.rChannelThreshold(undistorted, thresh=(220, 255))
+        b_channel = self.bChannelThreshold(undistorted, thresh=(0, 100))
+        combined_color = np.zeros_like(r_channel)
+        combined_color[((s_channel == 1) & (r_channel == 1)) | (b_channel == 1)] = 1
 
         grad_x = self.absSobelThresh(gray, orient='x', sobel_kernel=9, thresh=(50, 255))
-        grad_y = self.absSobelThresh(gray, orient='y', sobel_kernel=13, thresh=(75, 255))
-        mag_binary = self.magThresh(gray, sobel_kernel=25, thresh=(40, 255))
-        dir_binary = self.dirThresh(gray, sobel_kernel=25, thresh=(0.8, 1.2))
+        grad_y = self.absSobelThresh(gray, orient='y', sobel_kernel=13, thresh=(50, 255))
+        mag_binary = self.magThresh(gray, sobel_kernel=13, thresh=(50, 255))
         combined_grad = np.zeros_like(mag_binary)
-        combined_grad[((grad_x == 1) & (grad_y == 1)) | ((mag_binary == 1) & (dir_binary == 1))] = 1
+        combined_grad[((grad_x == 1) & (grad_y == 1)) | (mag_binary == 1)] = 1
 
         combined_grad_color = np.zeros_like(combined_grad)
-        combined_grad_color[(s_channel == 1) | (combined_grad == 1)] = 1
+        combined_grad_color[(combined_color == 1) | (combined_grad == 1)] = 1
 
         warped = self.camera.warp(combined_grad_color)
 
@@ -94,6 +100,17 @@ class Processor:
         binary_r = np.zeros_like(r_channel)
         binary_r[(r_channel > thresh[0]) & (r_channel <= thresh[1])] = 1
         return binary_r
+
+    def bChannelThreshold(self, img, thresh=(0, 255)):
+        """
+        Expects 3 channel image
+        """
+        lab = cv2.cvtColor(img, self.color_convert['2LAB'])
+        b_channel = lab[:,:,2]
+
+        binary_b = np.zeros_like(b_channel)
+        binary_b[(b_channel > thresh[0]) & (b_channel <= thresh[1])] = 1
+        return binary_b
 
     @staticmethod
     def absSobelThresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
@@ -156,6 +173,7 @@ class Processor:
         left_x_base = np.argmax(histogram[:midpoint])
         right_x_base = np.argmax(histogram[midpoint:]) + midpoint
         window_height = np.int(img.shape[0]//self.nwindows)
+        lane_width = np.abs(left_x_base - right_x_base)
 
         nonzero = img.nonzero()
         nonzero_y = np.array(nonzero[0])
@@ -171,49 +189,39 @@ class Processor:
         self.left_line.detected = False
         self.right_line.detected = False
 
-        if not self.left_line.detected or self.right_line.detected:
-            for window in range(self.nwindows):
-                # identify window boundaries in x and y (and right and left)
-                win_y_low = img.shape[0] - (window+1)*window_height
-                win_y_high = img.shape[0] - window*window_height
-                win_x_left_low = left_x_current - self.margin
-                win_x_left_high = left_x_current + self.margin
-                win_x_right_low = right_x_current - self.margin
-                win_x_right_high = right_x_current + self.margin
+        # if not self.left_line.detected or self.right_line.detected:
+        for window in range(self.nwindows):
+            # identify window boundaries in x and y (and right and left)
+            win_y_low = img.shape[0] - (window+1)*window_height
+            win_y_high = img.shape[0] - window*window_height
+            win_x_left_low = left_x_current - self.margin
+            win_x_left_high = left_x_current + self.margin
+            win_x_right_low = right_x_current - self.margin
+            win_x_right_high = right_x_current + self.margin
 
-                # draw the windows on the visualization image
-                cv2.rectangle(out_img,(win_x_left_low,win_y_low),(win_x_left_high,win_y_high), (0,255,0), 2)
-                cv2.rectangle(out_img,(win_x_right_low,win_y_low),(win_x_right_high,win_y_high), (0,255,0), 2)
+            # draw the windows on the visualization image
+            cv2.rectangle(out_img,(win_x_left_low,win_y_low),(win_x_left_high,win_y_high), (0,255,0), 2)
+            cv2.rectangle(out_img,(win_x_right_low,win_y_low),(win_x_right_high,win_y_high), (0,255,0), 2)
 
-                # identify the nonzero pixels in x and y within the window
-                good_left_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
-                    (nonzero_x >= win_x_left_low) &  (nonzero_x < win_x_left_high)).nonzero()[0]
-                good_right_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
-                    (nonzero_x >= win_x_right_low) &  (nonzero_x < win_x_right_high)).nonzero()[0]
+            # identify the nonzero pixels in x and y within the window
+            good_left_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+                (nonzero_x >= win_x_left_low) &  (nonzero_x < win_x_left_high)).nonzero()[0]
+            good_right_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
+                (nonzero_x >= win_x_right_low) &  (nonzero_x < win_x_right_high)).nonzero()[0]
 
-                # append these indices to the lists
-                left_lane_inds.append(good_left_inds)
-                right_lane_inds.append(good_right_inds)
+            # append these indices to the lists
+            left_lane_inds.append(good_left_inds)
+            right_lane_inds.append(good_right_inds)
 
-                # if > minpix pixels found, recenter next window on their mean position
-                if len(good_left_inds) > self.minpix:
-                    left_x_current = np.int(np.mean(nonzero_x[good_left_inds]))
-                if len(good_right_inds) > self.minpix:
-                    right_x_current = np.int(np.mean(nonzero_x[good_right_inds]))
+            # if > minpix pixels found, recenter next window on their mean position
+            if len(good_left_inds) > self.minpix:
+                left_x_current = np.int(np.mean(nonzero_x[good_left_inds]))
+            if len(good_right_inds) > self.minpix:
+                right_x_current = np.int(np.mean(nonzero_x[good_right_inds]))
 
-            # Concatenate the arrays of indices
-            left_lane_inds = np.concatenate(left_lane_inds)
-            right_lane_inds = np.concatenate(right_lane_inds)
-        else:
-            previous_fit_left = self.left_line.best_fit_all[-1]
-            left_lane_inds = ((nonzero_x > (previous_fit_left[0]*(nonzero_y**2) + previous_fit_left[1]*nonzero_y +
-                             previous_fit_left[2] - self.margin)) & (nonzero_x < (previous_fit_left[0]*(nonzero_y**2) +
-                             previous_fit_left[1]*nonzero_y + previous_fit_left[2] + self.margin)))
-
-            previous_fit_right = self.right_line.best_fit_all[-1]
-            right_lane_inds = ((nonzero_x > (previous_fit_right[0]*(nonzero_y**2) + previous_fit_right[1]*nonzero_y +
-                              previous_fit_right[2] - self.margin)) & (nonzero_x < (previous_fit_right[0]*(nonzero_y**2) +
-                              previous_fit_right[1]*nonzero_y + previous_fit_right[2] + self.margin)))
+        # Concatenate the arrays of indices
+        left_lane_inds = np.concatenate(left_lane_inds)
+        right_lane_inds = np.concatenate(right_lane_inds)
 
         # Again, extract left and right line pixel positions
         left_x = nonzero_x[left_lane_inds]
@@ -230,28 +238,46 @@ class Processor:
         left_fit_x = left_fit[0]*plot_y**2 + left_fit[1]*plot_y + left_fit[2]
         right_fit_x = right_fit[0]*plot_y**2 + right_fit[1]*plot_y + right_fit[2]
 
-        # determine if lines have been found
+        # calculate radius for each line
         self.left_line.calculateRadius(plot_y, left_fit_x)
-        if self.left_line.detected:
-            self.left_line.best_fit_raw.append(left_fit)
-            if len(self.left_line.best_fit_raw) > self.left_line.best_fit_window:
-                self.left_line.best_fit_raw.pop(0)
-            self.left_line.calculateBestFit()
-
-            self.left_line.current_x_fit = self.left_line.best_fit[0]*plot_y**2 + self.left_line.best_fit[1]*plot_y + self.left_line.best_fit[2]
-
         self.right_line.calculateRadius(plot_y, right_fit_x)
-        if self.right_line.detected:
-            self.right_line.best_fit_raw.append(right_fit)
-            if len(self.right_line.best_fit_raw) > self.right_line.best_fit_window:
-                self.right_line.best_fit_raw.pop(0)
-            self.right_line.calculateBestFit()
 
-            self.right_line.current_x_fit = self.right_line.best_fit[0]*plot_y**2 + self.right_line.best_fit[1]*plot_y + self.right_line.best_fit[2]
+        # do sanity check on lane width and difference between frames
+        distance = np.abs(left_fit_x - right_fit_x)
+        difference = np.abs(distance - lane_width)
+        if self.previous_difference is None:
+            self.previous_difference = difference
+        frame_difference = np.abs(difference - self.previous_difference)
+
+        frame_diff_ok = False
+        width_diff_ok = False
+        if np.max(difference) < self.lane_width_threshold:
+            width_diff_ok = True
+        if np.max(frame_difference) < self.previous_difference_threshold:
+            frame_diff_ok = True
+
+        if (frame_diff_ok and width_diff_ok) or self.left_line.best_fit is None:
+            self.left_line.previous_frames.append(left_fit)
+            self.right_line.previous_frames.append(right_fit)
+        else:
+            left_fit = self.left_line.best_fit * 0.7 + left_fit * 0.3
+            right_fit = self.right_line.best_fit * 0.7 + right_fit * 0.3
+            self.left_line.previous_frames.append(left_fit)
+            self.right_line.previous_frames.append(right_fit)
+
+        if len(self.left_line.previous_frames) > self.left_line.best_fit_window:
+            self.left_line.previous_frames.pop(0)
+        self.left_line.calculateBestFit()
+        if len(self.right_line.previous_frames) > self.right_line.best_fit_window:
+            self.right_line.previous_frames.pop(0)
+        self.right_line.calculateBestFit()
+
+        self.left_line.current_x_fit = self.left_line.best_fit[0]*plot_y**2 + self.left_line.best_fit[1]*plot_y + self.left_line.best_fit[2]
+        self.right_line.current_x_fit = self.right_line.best_fit[0]*plot_y**2 + self.right_line.best_fit[1]*plot_y + self.right_line.best_fit[2]
 
         # apply color mask and plot lines
-        out_img[nonzero_y[left_lane_inds], nonzero_x[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzero_y[right_lane_inds], nonzero_x[right_lane_inds]] = [0, 0, 255]
+        # out_img[nonzero_y[left_lane_inds], nonzero_x[left_lane_inds]] = [255, 0, 0]
+        # out_img[nonzero_y[right_lane_inds], nonzero_x[right_lane_inds]] = [0, 0, 255]
         # plt.imshow(out_img)
         # plt.plot(self.left_line.current_x_fit, plot_y, color='yellow')
         # plt.plot(self.right_line.current_x_fit, plot_y, color='yellow')
@@ -284,7 +310,7 @@ class Processor:
         return result
 
     def displayStats(self, img):
-        x_scale = 3.7/700
+        x_scale = 3.7/980
         y_scale = 30/720
 
         radius = (self.left_line.radius_of_curvature + self.right_line.radius_of_curvature) / 2
@@ -307,9 +333,9 @@ class Processor:
 def main():
     processor = Processor('BGR', (720,1280))
 
-    clip = VideoFileClip('challenge_video.mp4')
+    clip = VideoFileClip('project_video.mp4')
     processed_video = clip.fl_image(processor.processImage)
-    processed_video.write_videofile('challenge_processed.mp4', audio=False)
+    processed_video.write_videofile('output_video.mp4', audio=False)
 
 if __name__ == '__main__':
     main()

@@ -21,6 +21,7 @@ class Camera:
         self.mtx = None
         self.dist = None
         self.transform_matrix = None
+        self.transform_matrix_inv = None
 
         # automatically calibrate all camera objects
         self.calibrate()
@@ -57,20 +58,21 @@ class Camera:
         Calculates the transform matrix used for warping
         """
         # trapezoid points
-        bottom_left = [190, shape[0]]
-        top_left = [(shape[1]/2)-105, (shape[0]/2)+125]
-        top_right = [(shape[1]/2)+110, (shape[0]/2)+125]
-        bottom_right = [shape[1]-155, shape[0]]
+        bottom_left = [125, shape[0]]
+        top_left = [(shape[1]/2)-70, (shape[0]/2)+90]
+        top_right = [(shape[1]/2)+75, (shape[0]/2)+90]
+        bottom_right = [shape[1]-95, shape[0]]
 
         src_corners = np.float32([bottom_left, top_left, top_right, bottom_right])
         dst_corners = np.float32([
-            [200, shape[0]],
-            [200, 0],
-            [shape[1]-200, 0],
-            [shape[1]-200, shape[0]]
+            [150, shape[0]],
+            [150, 0],
+            [shape[1]-150, 0],
+            [shape[1]-150, shape[0]]
         ])
 
         self.transform_matrix = cv2.getPerspectiveTransform(src_corners, dst_corners)
+        self.transform_matrix_inv = cv2.getPerspectiveTransform(dst_corners, src_corners)
 
     def undistort(self, img):
         """
@@ -90,5 +92,4 @@ class Camera:
         Unwarps an image back to the original perspective
         """
         shape = (img.shape[1], img.shape[0])
-        Minv = np.linalg.inv(self.transform_matrix)
-        return cv2.warpPerspective(img, Minv, shape)
+        return cv2.warpPerspective(img, self.transform_matrix_inv, shape)
