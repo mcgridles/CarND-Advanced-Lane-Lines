@@ -86,7 +86,7 @@ I did this in lines 49 through 57 in my code in `line.py` where I calculated the
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-I implemented this step in lines # through # in my code in `detector.py` in the function `drawLane()`.  Here is an example of my result on a test image:
+I implemented this step in lines 290 through 310 in my code in `detector.py` in the function `drawLane()`.  Here is an example of my result on a test image:
 
 ![alt text](./output_images/lane.jpg)
 
