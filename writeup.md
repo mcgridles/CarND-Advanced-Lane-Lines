@@ -27,20 +27,20 @@ I start by preparing "object points", which will be the (x, y, z) coordinates of
 
 I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result:
 
-![alt text][./output_images/test_undistorted.jpg]
+![alt text](./output_images/test_undistorted.jpg)
 
 ### Pipeline (single images)
 
 #### 1. Provide an example of a distortion-corrected image.
 
 To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][./output_images/undistorted.jpg]
+![alt text](./output_images/undistorted.jpg)
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
 I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines 54 through 57 in `detector.py`).  Here's an example of my output for this step.
 
-![alt text][./output_images/threshold.jpg]
+![alt text](./output_images/threshold.jpg)
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
@@ -72,13 +72,13 @@ This resulted in the following source and destination points:
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
-![alt text][./output_images/warped.jpg]
+![alt text](./output_images/warped.jpg)
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
 Then I used the sliding window method to identify the lane lines in the image. To start, I produced a histogram of the bottom half of the image and used the positions of the two peaks on either side of the image as a base. Then, I found the nonzero pixels in the x and y directions within the window, and calculated the new position of the next window. This was done for each window all the way up the image, and then the indices of the nonzero points were used to fit a polynomial. Finally, I used the `Line` object to store the coefficients and averaged them over a moving window of 25 frames to smooth out the line.
 
-![alt text][./output_images/polynomials.jpg]
+![alt text](./output_images/polynomials.jpg)
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
@@ -88,7 +88,7 @@ I did this in lines 49 through 57 in my code in `line.py` where I calculated the
 
 I implemented this step in lines # through # in my code in `detector.py` in the function `drawLane()`.  Here is an example of my result on a test image:
 
-![alt text][./output_images/lane.jpg]
+![alt text](./output_images/lane.jpg)
 
 ---
 
