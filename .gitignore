@@ -5,10 +5,4 @@
 __pycache__
 
 # Extra project files
-camera_cal/
 examples/
-test_images/
-project_video.mp4
-challenge_video.mp4
-harder_challenge_video.mp4
-example_writeup.pdf
