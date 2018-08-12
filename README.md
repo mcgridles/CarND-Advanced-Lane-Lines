@@ -5,7 +5,11 @@
 
 Overview
 ---
-The goal of this project is to write a software pipeline to identify the lane boundaries in a video. The pipeline uses standard computer vision techniques to correct distortion in the video, perform perspective transformations, apply color and gradient thresholding, and identify the lane lines. Check out [my writeup](writeup.md) to learn more about my process and see how it works.
+The goal of this project is to write a software pipeline to identify the lane boundaries in a video. 
+
+The pipeline uses standard computer vision techniques to correct distortion in the video, perform perspective transformations to get a bird's eye view of the lane. Then, Sobel edge detection is combined with color thresholding, to identify which pixels belong to the lane lines. A polynomial equation is fit to these lines and a polygon is drawn to cover the lane. Finally, the image is warped back to its original perspective. 
+
+Check out [my writeup](writeup.md) to learn more about my process and how it works.
 
 Dependencies
 ---
